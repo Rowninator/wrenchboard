@@ -1,0 +1,6 @@
+{
+  "_instructions": "Fill in 10 nets by reading the schematic in KiCad, NOT the netlist file. Pins are REF.PIN. Include power rails, unnamed local nets, and at least one net that crosses sheets. Delete the example entry.",
+  "checks": [
+    {"net": "EXAMPLE_NET_NAME", "pins": ["U1.1", "C1.2"]}
+  ]
+}

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<export version="E">
+  <design><source>mini.kicad_sch</source><tool>hand written test fixture</tool></design>
+  <components>
+    <comp ref="J1"><value>Barrel_Jack</value><footprint>Conn:Jack</footprint><sheetpath names="/Power/" tstamps="/a/"/></comp>
+    <comp ref="D1"><value>D</value><footprint>Diode:SMA</footprint><sheetpath names="/Power/" tstamps="/a/"/></comp>
+    <comp ref="U1"><value>NCP1117-5.0</value><footprint>SOT223</footprint><sheetpath names="/Power/" tstamps="/a/"/></comp>
+    <comp ref="C1"><value>100n</value><footprint>C_0603</footprint><sheetpath names="/" tstamps="/"/></comp>
+    <comp ref="#PWR01"><value>GND</value><footprint></footprint><sheetpath names="/" tstamps="/"/></comp>
+  </components>
+  <nets>
+    <net code="1" name="GND" class="Default">
+      <node ref="J1" pin="2" pintype="passive"/>
+      <node ref="U1" pin="1" pinfunction="GND" pintype="power_in"/>
+      <node ref="C1" pin="2" pintype="passive"/>
+      <node ref="#PWR01" pin="1" pintype="power_in"/>
+    </net>
+    <net code="2" name="+5V" class="Default">
+      <node ref="U1" pin="2" pinfunction="VO" pintype="power_out"/>
+      <node ref="C1" pin="1" pintype="passive"/>
+    </net>
+    <net code="3" name="Net-(D1-A)" class="Default">
+      <node ref="J1" pin="1" pintype="passive"/>
+      <node ref="D1" pin="2" pinfunction="A" pintype="passive"/>
+    </net>
+    <net code="4" name="VIN" class="Default">
+      <node ref="D1" pin="1" pinfunction="K" pintype="passive"/>
+      <node ref="U1" pin="3" pinfunction="VI" pintype="power_in"/>
+    </net>
+    <net code="5" name="unconnected-(J1-Pad3)" class="Default">
+      <node ref="J1" pin="3" pintype="passive"/>
+    </net>
+  </nets>
+</export>
