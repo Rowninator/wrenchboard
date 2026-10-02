@@ -53,7 +53,7 @@ class Part:
     value: str
     footprint: str
     sheet: str
-
+    dnp: bool = False
 
 @dataclass(frozen=True)
 class Net:
@@ -143,11 +143,13 @@ def load_netlist(path: str | Path) -> Graph:
         if ref in parts:
             raise NetlistFormatError(f"duplicate part reference {ref!r}")
         sheetpath = comp.find("sheetpath")
+        dnp = any(p.get("name") == "dnp" for p in comp.iterfind("property"))
         parts[ref] = Part(
             ref=ref,
             value=comp.findtext("value", default=""),
             footprint=comp.findtext("footprint", default=""),
             sheet=sheetpath.get("names", "/") if sheetpath is not None else "/",
+            dnp=dnp,
         )
     if not parts:
         raise NetlistFormatError(f"{path} contains no parts")
