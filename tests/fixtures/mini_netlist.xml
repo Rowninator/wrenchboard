@@ -6,6 +6,7 @@
     <comp ref="D1"><value>D</value><footprint>Diode:SMA</footprint><sheetpath names="/Power/" tstamps="/a/"/></comp>
     <comp ref="U1"><value>NCP1117-5.0</value><footprint>SOT223</footprint><sheetpath names="/Power/" tstamps="/a/"/></comp>
     <comp ref="C1"><value>100n</value><footprint>C_0603</footprint><sheetpath names="/" tstamps="/"/><property name="dnp"/></comp>
+    <comp ref="FID1"><value>Fiducial</value><footprint>Fid</footprint><sheetpath names="/" tstamps="/"/></comp>
     <comp ref="#PWR01"><value>GND</value><footprint></footprint><sheetpath names="/" tstamps="/"/></comp>
   </components>
   <nets>

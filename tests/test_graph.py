@@ -25,7 +25,7 @@ def mini():
 # Loading and lookups (hand made netlist)
 
 def test_loads_real_parts_and_skips_power_symbols(mini):
-    assert mini.part_refs == ["C1", "D1", "J1", "U1"]
+    assert mini.part_refs == ["C1", "D1", "FID1", "J1", "U1"]
     assert not mini.has_part("#PWR01")
 
 
@@ -39,6 +39,8 @@ def test_dnp_flag(mini):
     assert mini.part("C1").dnp
     assert not mini.part("U1").dnp
 
+def test_electrical_parts_skip_dnp_and_unconnected(mini):
+    assert mini.electrical_part_refs == ["D1", "J1", "U1"]
 
 def test_net_pins_exclude_power_symbols(mini):
     assert {str(p) for p in mini.net("GND").pins} == {"J1.2", "U1.1", "C1.2"}
@@ -157,3 +159,9 @@ def test_uno_spot_checks():
 def test_uno_dnp_parts():
     graph = load_netlist(UNO_NETLIST)
     assert [r for r in graph.part_refs if graph.part(r).dnp] == ["R1", "R2"]
+
+@pytest.mark.skipif(not UNO_NETLIST.is_file(), reason="run scripts/export_netlist.py first")
+def test_uno_electrical_parts():
+    refs = set(load_netlist(UNO_NETLIST).electrical_part_refs)
+    assert refs.isdisjoint({"FID1", "FID2", "FID3", "R1", "R2"})
+    assert "U4" in refs

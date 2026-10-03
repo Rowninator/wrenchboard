@@ -89,6 +89,15 @@ class Graph:
     def net_names(self) -> list[str]:
         return sorted(self._nets)
 
+    @property
+    def electrical_part_refs(self) -> list[str]:
+        """Populated parts with at least one connected net."""
+        return sorted(
+            ref for ref, part in self._parts.items()
+            if not part.dnp
+            and any(not n.unconnected for n in self._part_nets[ref])
+        )
+
     def has_part(self, ref: str) -> bool:
         return ref in self._parts
 
