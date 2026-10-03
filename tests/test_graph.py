@@ -35,6 +35,10 @@ def test_part_fields(mini):
     assert u1.footprint == "SOT223"
     assert u1.sheet == "/Power/"
 
+def test_dnp_flag(mini):
+    assert mini.part("C1").dnp
+    assert not mini.part("U1").dnp
+
 
 def test_net_pins_exclude_power_symbols(mini):
     assert {str(p) for p in mini.net("GND").pins} == {"J1.2", "U1.1", "C1.2"}
@@ -148,3 +152,8 @@ def test_uno_spot_checks():
                 f"{c['net']}: missing {sorted(want - got)}, extra {sorted(got - want)}"
             )
     assert not failures, "\n".join(failures)
+
+@pytest.mark.skipif(not UNO_NETLIST.is_file(), reason="run scripts/export_netlist.py first")
+def test_uno_dnp_parts():
+    graph = load_netlist(UNO_NETLIST)
+    assert [r for r in graph.part_refs if graph.part(r).dnp] == ["R1", "R2"]
