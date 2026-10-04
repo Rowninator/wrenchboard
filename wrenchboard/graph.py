@@ -7,9 +7,12 @@ already resolved. This module only reads it; it never invents names.
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
+
+_UNIT_SUFFIX = re.compile(r"^([A-Za-z]+\d+)([A-Z]+)$")
 
 
 class GraphError(Exception):
@@ -115,6 +118,15 @@ class Graph:
             return self._nets[name]
         except KeyError:
             raise NetNotFound(name) from None
+
+    def resolve_ref(self, name: str) -> str:
+        """Return the graph's reference for name, mapping units like RN1A to RN1."""
+        if name in self._parts:
+            return name
+        m = _UNIT_SUFFIX.match(name)
+        if m and m.group(1) in self._parts:
+            return m.group(1)
+        raise PartNotFound(name)
 
     def parts_on_net(self, name: str) -> list[Part]:
         refs = {pin.ref for pin in self.net(name).pins}

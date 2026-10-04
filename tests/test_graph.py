@@ -42,6 +42,17 @@ def test_dnp_flag(mini):
 def test_electrical_parts_skip_dnp_and_unconnected(mini):
     assert mini.electrical_part_refs == ["D1", "J1", "U1"]
 
+def test_resolve_ref(mini):
+    assert mini.resolve_ref("U1") == "U1"
+    assert mini.resolve_ref("U1A") == "U1"
+    assert mini.resolve_ref("U1B") == "U1"
+
+
+def test_resolve_ref_rejects_unknown(mini):
+    for name in ["U9", "U9A", "X1", "U1A1", ""]:
+        with pytest.raises(PartNotFound):
+            mini.resolve_ref(name)
+
 def test_net_pins_exclude_power_symbols(mini):
     assert {str(p) for p in mini.net("GND").pins} == {"J1.2", "U1.1", "C1.2"}
 
@@ -165,3 +176,9 @@ def test_uno_electrical_parts():
     refs = set(load_netlist(UNO_NETLIST).electrical_part_refs)
     assert refs.isdisjoint({"FID1", "FID2", "FID3", "R1", "R2"})
     assert "U4" in refs
+
+@pytest.mark.skipif(not UNO_NETLIST.is_file(), reason="run scripts/export_netlist.py first")
+def test_uno_resolve_units():
+    graph = load_netlist(UNO_NETLIST)
+    assert graph.resolve_ref("RN1A") == "RN1"
+    assert graph.resolve_ref("RN2A") == "RN2"
