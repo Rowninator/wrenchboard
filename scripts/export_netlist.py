@@ -28,7 +28,10 @@ def find_kicad_cli() -> str | None:
     for base in (os.environ.get("ProgramFiles"), r"C:\Program Files"):
         if not base:
             continue
-        candidates = sorted(Path(base, "KiCad").glob("*/bin/kicad-cli.exe"))
+        candidates = sorted(
+            Path(base, "KiCad").glob("*/bin/kicad-cli.exe"),
+            key=lambda p: [int(x) for x in p.parent.parent.name.split(".") if x.isdigit()],
+        )
         if candidates:
             return str(candidates[-1])  # highest version folder
     return None
