@@ -1,0 +1,7 @@
+{
+  "ground": "GND",
+  "sources": {
+    "usb": "J8",
+    "barrel": "J9"
+  }
+}
