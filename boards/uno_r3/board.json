@@ -1,7 +1,7 @@
 {
   "ground": "GND",
   "sources": {
-    "usb": "J8",
-    "barrel": "J9"
+    "usb": {"connector": "J8", "net": "XUSB"},
+    "barrel": {"connector": "J9", "net": "Net-(D1-A)"}
   }
 }

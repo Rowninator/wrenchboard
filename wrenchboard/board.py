@@ -18,10 +18,16 @@ class BoardConfigError(GraphError):
 
 
 @dataclass(frozen=True)
+class Source:
+    connector: str  # part reference of the power input connector
+    net: str        # the net that connector supplies power on
+
+
+@dataclass(frozen=True)
 class Board:
     graph: Graph
     ground: str
-    sources: dict[str, str]  # source name -> connector reference
+    sources: dict[str, Source]
 
 
 def load_board(path: str | Path, graph: Graph) -> Board:
@@ -44,10 +50,24 @@ def load_board(path: str | Path, graph: Graph) -> Board:
     sources = data.get("sources")
     if not isinstance(sources, dict) or not sources:
         raise BoardConfigError(f"{path}: 'sources' must name at least one connector")
-    for name, ref in sources.items():
-        if not isinstance(ref, str) or not graph.has_part(ref):
-            raise BoardConfigError(
-                f"{path}: source {name!r} connector {ref!r} is not in the schematic"
-            )
+    parsed = {
+        name: _load_source(path, graph, ground, name, spec)
+        for name, spec in sources.items()
+    }
+    return Board(graph=graph, ground=ground, sources=parsed)
 
-    return Board(graph=graph, ground=ground, sources=dict(sources))
+
+def _load_source(path: Path, graph: Graph, ground: str, name: str, spec) -> Source:
+    where = f"{path}: source {name!r}"
+    if not isinstance(spec, dict):
+        raise BoardConfigError(f"{where} must be an object with 'connector' and 'net'")
+    connector, net = spec.get("connector"), spec.get("net")
+    if not isinstance(connector, str) or not graph.has_part(connector):
+        raise BoardConfigError(f"{where}: connector {connector!r} is not in the schematic")
+    if not isinstance(net, str) or not graph.has_net(net):
+        raise BoardConfigError(f"{where}: supply net {net!r} is not in the schematic")
+    if net == ground:
+        raise BoardConfigError(f"{where}: supply net cannot be the ground net")
+    if all(n.name != net for n in graph.nets_on_part(connector)):
+        raise BoardConfigError(f"{where}: connector {connector} has no pin on {net}")
+    return Source(connector=connector, net=net)

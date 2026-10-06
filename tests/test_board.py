@@ -3,11 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from wrenchboard.board import BoardConfigError, load_board
+from wrenchboard.board import BoardConfigError, Source, load_board
 from wrenchboard.graph import load_netlist
 
 FIXTURES = Path(__file__).parent / "fixtures"
 UNO_DIR = Path(__file__).parent.parent / "boards" / "uno_r3"
+
+BARREL = {"connector": "J1", "net": "Net-(D1-A)"}
 
 
 @pytest.fixture
@@ -22,16 +24,20 @@ def write(tmp_path, data):
 
 
 def test_loads_valid_config(tmp_path, mini):
-    board = load_board(write(tmp_path, {"ground": "GND", "sources": {"barrel": "J1"}}), mini)
+    board = load_board(write(tmp_path, {"ground": "GND", "sources": {"barrel": BARREL}}), mini)
     assert board.ground == "GND"
-    assert board.sources == {"barrel": "J1"}
+    assert board.sources == {"barrel": Source("J1", "Net-(D1-A)")}
 
 
 @pytest.mark.parametrize("data, message", [
-    ({"ground": "GND0", "sources": {"barrel": "J1"}}, "ground net"),
-    ({"ground": "GND", "sources": {"barrel": "J7"}}, "connector"),
+    ({"ground": "GND0", "sources": {"barrel": BARREL}}, "ground net"),
+    ({"sources": {"barrel": BARREL}}, "ground"),
     ({"ground": "GND", "sources": {}}, "sources"),
-    ({"sources": {"barrel": "J1"}}, "ground"),
+    ({"ground": "GND", "sources": {"barrel": "J1"}}, "must be an object"),
+    ({"ground": "GND", "sources": {"barrel": {"connector": "J7", "net": "VIN"}}}, "connector"),
+    ({"ground": "GND", "sources": {"barrel": {"connector": "J1", "net": "VIN12"}}}, "supply net"),
+    ({"ground": "GND", "sources": {"barrel": {"connector": "J1", "net": "GND"}}}, "cannot be the ground"),
+    ({"ground": "GND", "sources": {"barrel": {"connector": "J1", "net": "VIN"}}}, "has no pin on"),
 ])
 def test_rejects_bad_config(tmp_path, mini, data, message):
     with pytest.raises(BoardConfigError, match=message):
@@ -53,4 +59,7 @@ def test_uno_board_config():
     graph = load_netlist(UNO_DIR / "netlist.xml")
     board = load_board(UNO_DIR / "board.json", graph)
     assert board.ground == "GND"
-    assert board.sources == {"usb": "J8", "barrel": "J9"}
+    assert board.sources == {
+        "usb": Source("J8", "XUSB"),
+        "barrel": Source("J9", "Net-(D1-A)"),
+    }
