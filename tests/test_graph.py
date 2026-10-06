@@ -9,6 +9,7 @@ from wrenchboard.graph import (
     NetNotFound,
     PartNotFound,
     load_netlist,
+    natural_key,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -52,6 +53,9 @@ def test_resolve_ref_rejects_unknown(mini):
     for name in ["U9", "U9A", "X1", "U1A1", ""]:
         with pytest.raises(PartNotFound):
             mini.resolve_ref(name)
+
+def test_natural_key():
+    assert sorted(["C10", "C2", "C1"], key=natural_key) == ["C1", "C2", "C10"]
 
 def test_net_pins_exclude_power_symbols(mini):
     assert {str(p) for p in mini.net("GND").pins} == {"J1.2", "U1.1", "C1.2"}
@@ -182,3 +186,8 @@ def test_uno_resolve_units():
     graph = load_netlist(UNO_NETLIST)
     assert graph.resolve_ref("RN1A") == "RN1"
     assert graph.resolve_ref("RN2A") == "RN2"
+
+@pytest.mark.skipif(not UNO_NETLIST.is_file(), reason="run scripts/export_netlist.py first")
+def test_uno_refs_sorted_naturally():
+    refs = load_netlist(UNO_NETLIST).part_refs
+    assert refs.index("C2") < refs.index("C10")

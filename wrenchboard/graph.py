@@ -14,6 +14,13 @@ from pathlib import Path
 
 _UNIT_SUFFIX = re.compile(r"^([A-Za-z]+\d+)([A-Z]+)$")
 
+_DIGITS = re.compile(r"(\d+)")
+
+
+def natural_key(s: str) -> list:
+    """Sort key that orders C2 before C10."""
+    return [int(t) if t.isdigit() else t for t in _DIGITS.split(s)]
+
 
 class GraphError(Exception):
     """Base class for every error raised by this module."""
@@ -86,20 +93,21 @@ class Graph:
 
     @property
     def part_refs(self) -> list[str]:
-        return sorted(self._parts)
+        return sorted(self._parts, key=natural_key)
 
     @property
     def net_names(self) -> list[str]:
-        return sorted(self._nets)
+        return sorted(self._nets, key=natural_key)
 
     @property
     def electrical_part_refs(self) -> list[str]:
         """Populated parts with at least one connected net."""
-        return sorted(
+        refs = [
             ref for ref, part in self._parts.items()
             if not part.dnp
             and any(not n.unconnected for n in self._part_nets[ref])
-        )
+        ]
+        return sorted(refs, key=natural_key)
 
     def has_part(self, ref: str) -> bool:
         return ref in self._parts
@@ -130,11 +138,11 @@ class Graph:
 
     def parts_on_net(self, name: str) -> list[Part]:
         refs = {pin.ref for pin in self.net(name).pins}
-        return [self._parts[r] for r in sorted(refs)]
-
+        return [self._parts[r] for r in sorted(refs, key=natural_key)]
+    
     def nets_on_part(self, ref: str) -> list[Net]:
         self.part(ref)  # raises PartNotFound
-        return sorted(self._part_nets[ref], key=lambda n: n.name)
+        return sorted(self._part_nets[ref], key=lambda n: natural_key(n.name))
 
 
 def load_netlist(path: str | Path) -> Graph:
