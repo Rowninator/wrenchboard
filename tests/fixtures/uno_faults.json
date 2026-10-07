@@ -1,0 +1,10 @@
+{
+  "faults": [
+    {"name": "5V regulator output open", "part": "U1", "mode": "open",
+     "rail": "+5V", "symptom": "dead", "source": "barrel"},
+    {"name": "3.3V regulator output shorted", "part": "U2", "mode": "short",
+     "rail": "+3.3V", "symptom": "shorted", "source": null},
+    {"name": "USB power switch stuck open", "part": "Q1", "mode": "open",
+     "rail": "+5V", "symptom": "dead", "source": "usb"}
+  ]
+}

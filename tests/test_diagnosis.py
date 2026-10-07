@@ -1,12 +1,18 @@
+import json
 from pathlib import Path
 
 import pytest
 
-from wrenchboard.board import Board, Source
+from wrenchboard.board import Board, Source, load_board
 from wrenchboard.diagnosis import DiagnosisError, diagnose
 from wrenchboard.graph import NetNotFound, load_netlist
 
 FIXTURES = Path(__file__).parent / "fixtures"
+UNO_DIR = Path(__file__).parent.parent / "boards" / "uno_r3"
+UNO_FAULTS = json.loads((FIXTURES / "uno_faults.json").read_text())["faults"]
+needs_uno = pytest.mark.skipif(
+    not (UNO_DIR / "netlist.xml").is_file(), reason="run scripts/export_netlist.py first"
+)
 
 
 @pytest.fixture
@@ -109,3 +115,32 @@ def test_every_name_is_in_the_graph(board, rail, symptom, source):
         assert graph.has_part(s.ref)
         assert all(graph.has_net(n) for n in s.nets)
         assert not graph.part(s.ref).dnp
+
+# Uno R3: the Phase 2 checkpoint
+
+@pytest.fixture(scope="module")
+def uno():
+    return load_board(UNO_DIR / "board.json", load_netlist(UNO_DIR / "netlist.xml"))
+
+
+@needs_uno
+@pytest.mark.parametrize("fault", UNO_FAULTS, ids=lambda f: f["name"])
+def test_uno_fault_in_top_3(uno, fault):
+    assert uno.graph.has_part(fault["part"]), "fault names a part not in the schematic"
+    suspects = diagnose(uno, fault["rail"], fault["symptom"], fault["source"])
+    assert fault["part"] in [s.ref for s in suspects[:3]]
+
+
+@needs_uno
+@pytest.mark.parametrize("rail", ["+5V", "+3.3V", "VCC", "USBVCC"])
+def test_uno_every_name_is_in_the_graph(uno, rail):
+    results = [diagnose(uno, rail, "shorted")]
+    for source in uno.sources:
+        try:
+            results.append(diagnose(uno, rail, "dead", source))
+        except DiagnosisError:
+            pass  # no path from this source to this rail is a valid answer
+    for suspects in results:
+        for s in suspects:
+            assert uno.graph.has_part(s.ref) and not uno.graph.part(s.ref).dnp
+            assert all(uno.graph.has_net(n) for n in s.nets)
