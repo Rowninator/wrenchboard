@@ -28,6 +28,10 @@ def test_loads_valid_config(tmp_path, mini):
     assert board.ground == "GND"
     assert board.sources == {"barrel": Source("J1", "Net-(D1-A)")}
 
+def test_loads_expected(tmp_path, mini):
+    data = {"ground": "GND", "sources": {"barrel": BARREL}, "expected": {"barrel": {"VIN": 9}}}
+    assert load_board(write(tmp_path, data), mini).expected == {"barrel": {"VIN": 9.0}}
+
 
 @pytest.mark.parametrize("data, message", [
     ({"ground": "GND0", "sources": {"barrel": BARREL}}, "ground net"),
@@ -38,6 +42,10 @@ def test_loads_valid_config(tmp_path, mini):
     ({"ground": "GND", "sources": {"barrel": {"connector": "J1", "net": "VIN12"}}}, "supply net"),
     ({"ground": "GND", "sources": {"barrel": {"connector": "J1", "net": "GND"}}}, "cannot be the ground"),
     ({"ground": "GND", "sources": {"barrel": {"connector": "J1", "net": "VIN"}}}, "has no pin on"),
+    ({"ground": "GND", "sources": {"barrel": BARREL}, "expected": {"solar": {}}}, "unknown source"),
+    ({"ground": "GND", "sources": {"barrel": BARREL}, "expected": {"barrel": {"+12V": 5}}}, "not in the schematic"),
+    ({"ground": "GND", "sources": {"barrel": BARREL}, "expected": {"barrel": {"VIN": "five"}}}, "must be a number"),
+    ({"ground": "GND", "sources": {"barrel": BARREL}, "expected": {"barrel": {"GND": 0}}}, "ground net"),
 ])
 def test_rejects_bad_config(tmp_path, mini, data, message):
     with pytest.raises(BoardConfigError, match=message):
@@ -63,3 +71,4 @@ def test_uno_board_config():
         "usb": Source("J8", "XUSB"),
         "barrel": Source("J9", "Net-(D1-A)"),
     }
+    assert board.expected["usb"]["GATE_CMD"] == 0.0

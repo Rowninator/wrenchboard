@@ -7,7 +7,7 @@ follows the same rule as everything else: no names that aren't in the schematic.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .graph import Graph, GraphError
@@ -28,6 +28,7 @@ class Board:
     graph: Graph
     ground: str
     sources: dict[str, Source]
+    expected: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 def load_board(path: str | Path, graph: Graph) -> Board:
@@ -54,7 +55,8 @@ def load_board(path: str | Path, graph: Graph) -> Board:
         name: _load_source(path, graph, ground, name, spec)
         for name, spec in sources.items()
     }
-    return Board(graph=graph, ground=ground, sources=parsed)
+    expected = _load_expected(path, graph, ground, parsed, data.get("expected", {}))
+    return Board(graph=graph, ground=ground, sources=parsed, expected=expected)
 
 
 def _load_source(path: Path, graph: Graph, ground: str, name: str, spec) -> Source:
@@ -71,3 +73,22 @@ def _load_source(path: Path, graph: Graph, ground: str, name: str, spec) -> Sour
     if all(n.name != net for n in graph.nets_on_part(connector)):
         raise BoardConfigError(f"{where}: connector {connector} has no pin on {net}")
     return Source(connector=connector, net=net)
+
+def _load_expected(path: Path, graph: Graph, ground: str, sources: dict, raw) -> dict:
+    if not isinstance(raw, dict):
+        raise BoardConfigError(f"{path}: 'expected' must be an object")
+    out = {}
+    for source, readings in raw.items():
+        if source not in sources:
+            raise BoardConfigError(f"{path}: expected readings for unknown source {source!r}")
+        if not isinstance(readings, dict):
+            raise BoardConfigError(f"{path}: expected readings for {source!r} must be an object")
+        for net, volts in readings.items():
+            if not graph.has_net(net):
+                raise BoardConfigError(f"{path}: net {net!r} is not in the schematic")
+            if net == ground:
+                raise BoardConfigError(f"{path}: no expected reading needed for the ground net")
+            if isinstance(volts, bool) or not isinstance(volts, (int, float)):
+                raise BoardConfigError(f"{path}: expected reading for {net!r} must be a number")
+        out[source] = {net: float(v) for net, v in readings.items()}
+    return out
