@@ -76,6 +76,9 @@ def test_shorted_3v3(board):
 def test_shorted_5v_orders_capacitors_first(board):
     assert refs(diagnose(board, "+5V", "shorted")) == ["C1", "U1", "U2", "U3", "RN1"]
 
+def test_shorted_has_no_distance(board):
+    assert all(s.distance is None for s in diagnose(board, "+3V3", "shorted"))
+
 
 # Bad requests
 

@@ -41,7 +41,7 @@ class DiagnosisError(GraphError):
 class Suspect:
     ref: str
     role: str                  # regulator, switch, series, control, or shunt
-    distance: int              # parts away from the rail (1 = directly on it)
+    distance: int | None       # parts away from the rail (1 = directly on it)
     nets: tuple[str, ...]      # every net named in the reason
     reason: str
 
@@ -185,7 +185,7 @@ def _shorted(board: Board, rail: str) -> list[Suspect]:
             continue
         if any(n.name == ground for n in graph.nets_on_part(part.ref)):
             reason = f"{part.ref} connects {rail} to {ground}"
-            suspects.append(Suspect(part.ref, "shunt", 1, (rail, ground), reason))
+            suspects.append(Suspect(part.ref, "shunt", None, (rail, ground), reason))
 
     def order(s: Suspect):
         prefix = s.ref.rstrip("0123456789")
