@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hand written fixture shaped like the Uno power section, with traps:
+     RN1 is a resistor pack touching VCC and +5V (must not count as a path),
+     R1 is unpopulated and bridges XUSB to +5V (must not count as a path),
+     R2 and D2 lead off +5V to RST and dead end there. -->
+<export version="E">
+  <components>
+    <comp ref="J1"><value>USB</value></comp>
+    <comp ref="F1"><value>Polyfuse</value></comp>
+    <comp ref="Q1"><value>PMOS</value></comp>
+    <comp ref="U3"><value>Comparator</value></comp>
+    <comp ref="J2"><value>Barrel_Jack</value></comp>
+    <comp ref="D1"><value>D</value></comp>
+    <comp ref="U1"><value>Reg_5V</value></comp>
+    <comp ref="U2"><value>Reg_3V3</value></comp>
+    <comp ref="C1"><value>47u</value></comp>
+    <comp ref="C2"><value>1u</value></comp>
+    <comp ref="RN1"><value>10k</value></comp>
+    <comp ref="R1"><value>0R</value><property name="dnp"/></comp>
+    <comp ref="R2"><value>10k</value></comp>
+    <comp ref="D2"><value>D</value></comp>
+  </components>
+  <nets>
+    <net code="1" name="GND">
+      <node ref="J1" pin="2" pintype="passive"/>
+      <node ref="J2" pin="2" pintype="passive"/>
+      <node ref="U1" pin="1" pinfunction="GND" pintype="power_in"/>
+      <node ref="U2" pin="2" pinfunction="GND" pintype="power_in"/>
+      <node ref="U3" pin="4" pinfunction="V-" pintype="power_in"/>
+      <node ref="C1" pin="2" pintype="passive"/>
+      <node ref="C2" pin="1" pintype="passive"/>
+      <node ref="RN1" pin="4" pintype="passive"/>
+    </net>
+    <net code="2" name="XUSB">
+      <node ref="J1" pin="1" pinfunction="VBUS" pintype="passive"/>
+      <node ref="F1" pin="1" pintype="passive"/>
+      <node ref="R1" pin="1" pintype="passive"/>
+    </net>
+    <net code="3" name="USBVCC">
+      <node ref="F1" pin="2" pintype="passive"/>
+      <node ref="Q1" pin="3" pinfunction="D" pintype="passive"/>
+    </net>
+    <net code="4" name="GATE">
+      <node ref="Q1" pin="1" pinfunction="G" pintype="input"/>
+      <node ref="U3" pin="1" pintype="output"/>
+    </net>
+    <net code="5" name="SENSE">
+      <node ref="U3" pin="3" pintype="input"/>
+      <node ref="RN1" pin="2" pintype="passive"/>
+    </net>
+    <net code="6" name="JIN">
+      <node ref="J2" pin="1" pintype="passive"/>
+      <node ref="D1" pin="2" pinfunction="A" pintype="passive"/>
+    </net>
+    <net code="7" name="VCC">
+      <node ref="D1" pin="1" pinfunction="K" pintype="passive"/>
+      <node ref="U1" pin="3" pinfunction="VI" pintype="power_in"/>
+      <node ref="RN1" pin="1" pintype="passive"/>
+    </net>
+    <net code="8" name="+5V">
+      <node ref="Q1" pin="2" pinfunction="S" pintype="passive"/>
+      <node ref="U1" pin="2" pinfunction="VO" pintype="power_out"/>
+      <node ref="U2" pin="1" pinfunction="VIN" pintype="power_in"/>
+      <node ref="U3" pin="8" pinfunction="V+" pintype="power_in"/>
+      <node ref="C1" pin="1" pintype="passive"/>
+      <node ref="RN1" pin="3" pintype="passive"/>
+      <node ref="R1" pin="2" pintype="passive"/>
+      <node ref="R2" pin="1" pintype="passive"/>
+      <node ref="D2" pin="1" pinfunction="K" pintype="passive"/>
+    </net>
+    <net code="9" name="+3V3">
+      <node ref="U2" pin="3" pinfunction="VOUT" pintype="power_out"/>
+      <node ref="C2" pin="2" pintype="passive"/>
+      <node ref="U3" pin="2" pintype="input"/>
+    </net>
+    <net code="10" name="RST">
+      <node ref="R2" pin="2" pintype="passive"/>
+      <node ref="D2" pin="2" pinfunction="A" pintype="passive"/>
+    </net>
+  </nets>
+</export>
