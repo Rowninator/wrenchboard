@@ -110,6 +110,9 @@ def _upstream_edges(board: Board, net: str) -> list[_Edge]:
                     edges.append(_Edge(net, other, part.ref, "switch", control))
 
         elif len(pins) == 2 and len(nets_here) == 2 and ground not in nets_here:
+            names = {p.name: n for p, n in pins}
+            if set(names) == {"A", "K"} and names["K"] != net:
+                continue  # a diode only carries power from anode to cathode
             other = next(n for n in nets_here if n != net)
             edges.append(_Edge(net, other, part.ref, "series"))
     return edges

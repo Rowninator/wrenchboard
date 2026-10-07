@@ -59,9 +59,7 @@ def test_dead_ends_and_traps_excluded(board):
 
 def test_pullup_counts_as_a_path(board):
     # RST is fed from +5V through R2, so a dead RST traces back to the source.
-    found = refs(diagnose(board, "RST", "dead", "barrel"))
-    assert set(found[:2]) == {"R2", "D2"}
-    assert found[2:] == ["U1", "D1"]
+    assert refs(diagnose(board, "RST", "dead", "barrel")) == ["R2", "U1", "D1"]
 
 
 def test_no_path_raises(board):
