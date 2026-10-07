@@ -1,8 +1,10 @@
+import json
+
 from pathlib import Path
 
 import pytest
 
-from wrenchboard.board import Board, Source
+from wrenchboard.board import Board, Source, load_board
 from wrenchboard.graph import load_netlist
 from wrenchboard.session import Session, SessionError, replay
 
@@ -96,3 +98,18 @@ def test_non_number_reading_raises(board, bad):
 def test_scenario_missing_reading_raises(board):
     with pytest.raises(SessionError, match="no reading for VCC"):
         replay(Session(board, "+5V", "dead", "barrel"), {})
+
+
+UNO_DIR = Path(__file__).parent.parent / "boards" / "uno_r3"
+UNO_SCENARIOS = json.loads((FIXTURES / "uno_scenarios.json").read_text())["scenarios"]
+
+
+@pytest.mark.skipif(not (UNO_DIR / "netlist.xml").is_file(), reason="run scripts/export_netlist.py first")
+@pytest.mark.parametrize("sc", UNO_SCENARIOS, ids=lambda s: s["name"])
+def test_uno_scenario(sc):
+    board = load_board(UNO_DIR / "board.json", load_netlist(UNO_DIR / "netlist.xml"))
+    session = replay(Session(board, sc["rail"], sc["symptom"], sc["source"]), sc["readings"])
+    assert session.result == [sc["fault"]]
+    assert all(r.cleared for r in session.history), "dead end step"
+    keys = steps(session)
+    assert len(keys) == len(set(keys)), "tested something twice"

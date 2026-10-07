@@ -1,0 +1,13 @@
+{
+  "scenarios": [
+    {"name": "U1 output open", "fault": "U1",
+     "rail": "+5V", "symptom": "dead", "source": "barrel",
+     "readings": {"VCC": 8.3}},
+    {"name": "Q1 stuck open", "fault": "Q1",
+     "rail": "+5V", "symptom": "dead", "source": "usb",
+     "readings": {"USBVCC": 5.0, "GATE_CMD": 0.0}},
+    {"name": "U2 output shorted", "fault": "U2",
+     "rail": "+3.3V", "symptom": "shorted", "source": null,
+     "readings": {"lift:C5": 0.2, "lift:U2": 1500}}
+  ]
+}
