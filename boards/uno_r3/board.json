@@ -3,5 +3,9 @@
   "sources": {
     "usb": {"connector": "J8", "net": "XUSB"},
     "barrel": {"connector": "J9", "net": "Net-(D1-A)"}
+  },
+  "expected": {
+    "usb": {"XUSB": 5.0, "USBVCC": 5.0, "GATE_CMD": 0.0, "+5V": 5.0, "+3.3V": 3.3},
+    "barrel": {"Net-(D1-A)": 9.0, "VCC": 8.3, "GATE_CMD": 5.0, "+5V": 5.0, "+3.3V": 3.3}
   }
 }
