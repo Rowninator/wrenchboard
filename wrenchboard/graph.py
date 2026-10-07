@@ -144,6 +144,11 @@ class Graph:
         self.part(ref)  # raises PartNotFound
         return sorted(self._part_nets[ref], key=lambda n: natural_key(n.name))
 
+def _clean_pin_name(name: str | None, number: str) -> str | None:
+    """KiCad 10 appends the pin number to pin names (K_1); remove it."""
+    if name and name.endswith(f"_{number}"):
+        name = name[: -len(number) - 1]
+    return name or None
 
 def load_netlist(path: str | Path) -> Graph:
     """Read a KiCad XML netlist (kicadxml export) into a Graph."""
@@ -194,7 +199,7 @@ def load_netlist(path: str | Path) -> Graph:
             Pin(
                 ref=node.get("ref", ""),
                 number=node.get("pin", ""),
-                name=node.get("pinfunction"),
+                name=_clean_pin_name(node.get("pinfunction"), node.get("pin", "")),
                 type=node.get("pintype"),
             )
             for node in net_el.iterfind("node")

@@ -10,6 +10,7 @@ from wrenchboard.graph import (
     PartNotFound,
     load_netlist,
     natural_key,
+    _clean_pin_name,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -56,6 +57,22 @@ def test_resolve_ref_rejects_unknown(mini):
 
 def test_natural_key():
     assert sorted(["C10", "C2", "C1"], key=natural_key) == ["C1", "C2", "C10"]
+
+@pytest.mark.parametrize("raw, number, clean", [
+    ("K_1", "1", "K"),
+    ("VBUS_A4", "A4", "VBUS"),
+    ("Pin_2_2", "2", "Pin_2"),
+    ("VO", "2", "VO"),
+    (None, "1", None),
+])
+def test_clean_pin_name(raw, number, clean):
+    assert _clean_pin_name(raw, number) == clean
+
+
+@pytest.mark.skipif(not UNO_NETLIST.is_file(), reason="run scripts/export_netlist.py first")
+def test_uno_pin_names_cleaned():
+    pins = {str(p): p.name for p in load_netlist(UNO_NETLIST).net("Net-(D1-A)").pins}
+    assert pins == {"D1.2": "A", "J9.1": None}
 
 def test_net_pins_exclude_power_symbols(mini):
     assert {str(p) for p in mini.net("GND").pins} == {"J1.2", "U1.1", "C1.2"}
