@@ -18,6 +18,10 @@ def board_dir(tmp_path):
             "usb": {"connector": "J1", "net": "XUSB"},
             "barrel": {"connector": "J2", "net": "JIN"},
         },
+        "expected": {
+            "usb": {"XUSB": 5.0, "USBVCC": 5.0, "GATE": 0.0, "+5V": 5.0},
+            "barrel": {"JIN": 9.0, "VCC": 8.3, "GATE": 5.0, "+5V": 5.0},
+        },
     }))
     return str(tmp_path)
 
@@ -62,3 +66,53 @@ def test_unknown_symptom_rejected(capsys, board_dir):
     with pytest.raises(SystemExit) as e:
         main(["diagnose", "+5V", "smoking", "--board", board_dir])
     assert e.value.code == 2
+
+
+# session command
+
+def test_session_interactive(capsys, monkeypatch, board_dir):
+    answers = iter(["abc", "5.0", "0.1"])  # one bad entry, then USBVCC, then GATE
+    monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
+    code, out, _ = run(capsys, "session", "+5V", "dead", "--source", "usb", "--board", board_dir)
+    assert code == 0
+    assert "Please enter a number" in out
+    assert "Cleared: F1" in out
+    assert "Fault found: Q1" in out
+
+
+def test_session_quit(capsys, monkeypatch, board_dir):
+    monkeypatch.setattr("builtins.input", lambda prompt: "q")
+    code, out, _ = run(capsys, "session", "+5V", "dead", "--source", "barrel", "--board", board_dir)
+    assert code == 1
+    assert "Stopped." in out
+
+
+def test_session_replay_list(capsys, tmp_path, board_dir):
+    f = tmp_path / "s.json"
+    f.write_text(json.dumps({"scenarios": [
+        {"name": "D1 open", "readings": {"VCC": 0.0}},
+        {"name": "U1 open", "readings": {"VCC": 8.3}},
+    ]}))
+    code, out, _ = run(capsys, "session", "+5V", "dead", "--source", "barrel",
+                       "--board", board_dir, "--replay", str(f), "--scenario", "U1 open")
+    assert code == 0
+    assert "Measure the voltage on VCC (expected about 8.3 V): 8.3" in out
+    assert "Fault found: U1" in out
+
+
+def test_session_replay_needs_scenario_name(capsys, tmp_path, board_dir):
+    f = tmp_path / "s.json"
+    f.write_text(json.dumps({"scenarios": [{"name": "U1 open", "readings": {}}]}))
+    code, _, err = run(capsys, "session", "+5V", "dead", "--source", "barrel",
+                       "--board", board_dir, "--replay", str(f))
+    assert code == 1
+    assert "choose a scenario" in err
+
+
+def test_session_replay_missing_reading(capsys, tmp_path, board_dir):
+    f = tmp_path / "s.json"
+    f.write_text(json.dumps({"readings": {}}))
+    code, _, err = run(capsys, "session", "+5V", "dead", "--source", "barrel",
+                       "--board", board_dir, "--replay", str(f))
+    assert code == 1
+    assert "no reading for VCC" in err
