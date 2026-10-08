@@ -116,3 +116,51 @@ def test_session_replay_missing_reading(capsys, tmp_path, board_dir):
                        "--board", board_dir, "--replay", str(f))
     assert code == 1
     assert "no reading for VCC" in err
+
+
+# --svg option
+
+@pytest.fixture
+def mini_board_dir(tmp_path):
+    shutil.copy(FIXTURES / "mini_netlist.xml", tmp_path / "netlist.xml")
+    shutil.copy(FIXTURES / "mini.kicad_pcb", tmp_path / "board.kicad_pcb")
+    (tmp_path / "board.json").write_text(json.dumps({
+        "ground": "GND",
+        "sources": {"barrel": {"connector": "J1", "net": "Net-(D1-A)"}},
+        "expected": {"barrel": {"VIN": 9.0, "+5V": 5.0}},
+    }))
+    return tmp_path
+
+
+def highlight_states(svg_path):
+    import xml.etree.ElementTree as ET
+    root = ET.parse(svg_path).getroot()
+    ns = {"s": "http://www.w3.org/2000/svg"}
+    return {r.get("data-highlight"): r.get("class")
+            for r in root.iterfind(".//s:rect[@data-highlight]", ns)}
+
+
+def test_diagnose_svg(capsys, mini_board_dir):
+    out_svg = mini_board_dir / "out.svg"
+    code, _, _ = run(capsys, "diagnose", "+5V", "dead", "--source", "barrel",
+                     "--board", str(mini_board_dir), "--svg", str(out_svg))
+    assert code == 0
+    assert highlight_states(out_svg) == {"U1": "suspect", "D1": "suspect"}
+
+
+def test_session_svg_shows_result(capsys, tmp_path, mini_board_dir):
+    out_svg = mini_board_dir / "out.svg"
+    f = tmp_path / "r.json"
+    f.write_text(json.dumps({"readings": {"VIN": 8.9}}))
+    code, out, _ = run(capsys, "session", "+5V", "dead", "--source", "barrel",
+                       "--board", str(mini_board_dir), "--svg", str(out_svg), "--replay", str(f))
+    assert code == 0
+    assert "Fault found: U1" in out
+    assert highlight_states(out_svg) == {"U1": "found", "D1": "cleared"}
+
+
+def test_svg_without_pcb_file(capsys, board_dir, tmp_path):
+    code, _, err = run(capsys, "diagnose", "+5V", "shorted", "--board", board_dir,
+                       "--svg", str(tmp_path / "x.svg"))
+    assert code == 1
+    assert "expected one .kicad_pcb file" in err

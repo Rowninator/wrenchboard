@@ -1,8 +1,11 @@
 """Command line interface.
 
-    python -m wrenchboard diagnose RAIL SYMPTOM [--source NAME] [--board DIR]
-    python -m wrenchboard session  RAIL SYMPTOM [--source NAME] [--board DIR]
+    python -m wrenchboard diagnose RAIL SYMPTOM [--source NAME] [--board DIR] [--svg FILE]
+    python -m wrenchboard session  RAIL SYMPTOM [--source NAME] [--board DIR] [--svg FILE]
                                    [--replay FILE [--scenario NAME]]
+
+--svg writes a picture of the board with the suspects highlighted; during a
+session it is rewritten after every reading.
 """
 
 from __future__ import annotations
@@ -15,6 +18,8 @@ from pathlib import Path
 from .board import load_board
 from .diagnosis import SYMPTOMS, diagnose
 from .graph import GraphError, load_netlist
+from .pcb import PcbError, check_against_graph, load_pcb
+from .render import render_svg
 from .session import Session, SessionError
 
 
@@ -28,6 +33,7 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("symptom", choices=SYMPTOMS)
         p.add_argument("--source", help="active power source (required for a dead rail)")
         p.add_argument("--board", default="boards/uno_r3", help="board folder")
+        p.add_argument("--svg", help="write a board picture with highlights to this file")
         if name == "session":
             p.add_argument("--replay", help="JSON file of readings instead of typing them")
             p.add_argument("--scenario", help="scenario name, if the file holds a list")
@@ -36,18 +42,35 @@ def main(argv: list[str] | None = None) -> int:
     try:
         board_dir = Path(args.board)
         board = load_board(board_dir / "board.json", load_netlist(board_dir / "netlist.xml"))
+        pcb = _load_pcb(board_dir, board.graph) if args.svg else None
         if args.command == "diagnose":
-            return _diagnose(board, args)
+            return _diagnose(board, args, pcb)
         readings = _load_readings(args.replay, args.scenario) if args.replay else None
-        return _session(board, args, readings)
+        return _session(board, args, readings, pcb)
     except (GraphError, OSError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
 
-def _diagnose(board, args) -> int:
+def _load_pcb(board_dir: Path, graph):
+    files = sorted(board_dir.glob("*.kicad_pcb"))
+    if len(files) != 1:
+        raise PcbError(f"expected one .kicad_pcb file in {board_dir}, found {len(files)}")
+    pcb = load_pcb(files[0])
+    check_against_graph(pcb, graph)
+    return pcb
+
+
+def _write_svg(path: str, pcb, parts: dict, net: str | None, title: str) -> None:
+    Path(path).write_text(render_svg(pcb, parts, net, title), encoding="utf-8")
+
+
+def _diagnose(board, args, pcb) -> int:
     suspects = diagnose(board, args.rail, args.symptom, args.source)
     where = f" on {args.source} power" if args.source else ""
+    if pcb is not None:
+        _write_svg(args.svg, pcb, {s.ref: "suspect" for s in suspects}, None,
+                   f"{args.rail} {args.symptom}{where}")
     if not suspects:
         print(f"No suspects for {args.rail} {args.symptom}{where}.")
         return 0
@@ -70,9 +93,28 @@ def _load_readings(path: str, scenario: str | None) -> dict:
     return data["readings"]
 
 
-def _session(board, args, readings: dict | None) -> int:
+def _session_svg(args, pcb, session: Session) -> None:
+    if pcb is None:
+        return
+    parts = {ref: "cleared" for r in session.history for ref in r.cleared}
+    step = session.next_step()
+    remaining = session.result
+    state = "found" if step is None and len(remaining) == 1 else "suspect"
+    parts.update({ref: state for ref in remaining})
+    net = step.net if step is not None and step.kind == "measure" else None
+    if step is not None:
+        title = step.prompt
+    elif len(remaining) == 1:
+        title = f"Fault found: {remaining[0]}"
+    else:
+        title = "Session finished"
+    _write_svg(args.svg, pcb, parts, net, title)
+
+
+def _session(board, args, readings: dict | None, pcb=None) -> int:
     session = Session(board, args.rail, args.symptom, args.source)
     print("Suspects: " + ", ".join(session.result))
+    _session_svg(args, pcb, session)
     while (step := session.next_step()) is not None:
         if readings is not None:
             if step.key not in readings:
@@ -96,6 +138,7 @@ def _session(board, args, readings: dict | None) -> int:
             verdict = "as expected" if rec.good else "not as expected"
         print(f"  {verdict}. Cleared: {', '.join(rec.cleared)}. "
               f"Remaining: {', '.join(session.result)}")
+        _session_svg(args, pcb, session)
 
     result = session.result
     if len(result) == 1:
