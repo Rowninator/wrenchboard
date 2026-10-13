@@ -50,6 +50,9 @@ def test_highlights_land_on_parts(pcb):
         "U1": "suspect", "D1": "cleared", "J1": "found"}
     assert_highlights_on_parts(pcb, svg)
 
+def test_lift_state(pcb):
+    assert highlights(render_svg(pcb, {"U1": "lift"}))["U1"][0] == "lift"
+
 
 def test_measure_net_marks_exactly_its_pads(pcb):
     root = ET.fromstring(render_svg(pcb, measure_net="GND"))

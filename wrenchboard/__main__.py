@@ -136,6 +136,8 @@ def _session_svg(args, pcb, session: Session) -> None:
     remaining = session.result
     state = "found" if step is None and len(remaining) == 1 else "suspect"
     parts.update({ref: state for ref in remaining})
+    if step is not None and step.kind == "lift":
+        parts[step.ref] = "lift"    
     net = step.net if step is not None and step.kind == "measure" else None
     if step is not None:
         title = step.prompt

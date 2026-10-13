@@ -11,7 +11,7 @@ from xml.sax.saxutils import escape, quoteattr
 
 from .pcb import Pcb, PcbError, _pad_corners
 
-STATES = ("suspect", "cleared", "found")
+STATES = ("suspect", "cleared", "found", "lift")
 
 _STYLE = """
   .outline { fill: #1f5130; stroke: #c9b458; stroke-width: 0.3; }
@@ -23,6 +23,7 @@ _STYLE = """
   .suspect { fill: rgba(230, 57, 70, 0.45); stroke: #e63946; stroke-width: 0.35; }
   .cleared { fill: rgba(160, 160, 160, 0.55); stroke: #9a9a9a; stroke-width: 0.25; }
   .found { fill: rgba(42, 157, 90, 0.6); stroke: #2a9d5a; stroke-width: 0.45; }
+  .lift { fill: rgba(255, 183, 3, 0.55); stroke: #ffb703; stroke-width: 0.45; stroke-dasharray: 0.8 0.4; }
   .measure { fill: #3a86ff; stroke: #ffffff; stroke-width: 0.15; }
   .label { fill: #222222; font-family: sans-serif; }
 """
@@ -162,7 +163,7 @@ def _legend(x: float, y: float, title: str, measure_net: str | None) -> list[str
         out.append(f'<text class="label" x="{x:.3f}" y="{y:.3f}" font-size="1.8" '
                    f'font-weight="bold">{escape(title)}</text>')
     y += 3.5
-    items = [("suspect", "suspect"), ("cleared", "cleared"), ("found", "fault found")]
+    items = [("suspect", "suspect"), ("cleared", "cleared"), ("found", "fault found"), ("lift", "lift this")]
     for cls, text in items:
         out.append(f'<rect class="{cls}" x="{x:.3f}" y="{y - 1:.3f}" width="2" height="2" rx="0.3"/>')
         out.append(f'<text class="label" x="{x + 2.8:.3f}" y="{y + 0.5:.3f}" font-size="1.4">{text}</text>')
