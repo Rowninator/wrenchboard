@@ -4,6 +4,10 @@
     python -m wrenchboard session  RAIL SYMPTOM [--source NAME] [--board DIR] [--svg FILE]
                                    [--replay FILE [--scenario NAME]]
 
+    python -m wrenchboard ask "DESCRIPTION" [--session] [--board DIR] [--svg FILE]
+
+ask uses the AI layer (needs ANTHROPIC_API_KEY) to turn a description into
+the engine's terms, then runs the engine and explains the result.
 --svg writes a picture of the board with the suspects highlighted; during a
 session it is rewritten after every reading.
 """
@@ -15,6 +19,7 @@ import json
 import sys
 from pathlib import Path
 
+from . import ai
 from .board import load_board
 from .diagnosis import SYMPTOMS, diagnose
 from .graph import GraphError, load_netlist
@@ -37,12 +42,19 @@ def main(argv: list[str] | None = None) -> int:
         if name == "session":
             p.add_argument("--replay", help="JSON file of readings instead of typing them")
             p.add_argument("--scenario", help="scenario name, if the file holds a list")
+    a = sub.add_parser("ask", help="describe the problem in your own words (uses the AI layer)")
+    a.add_argument("text", help='e.g. "the board is dead when I plug in USB"')
+    a.add_argument("--session", action="store_true", help="continue into the measurement loop")
+    a.add_argument("--board", default="boards/uno_r3", help="board folder")
+    a.add_argument("--svg", help="write a board picture with highlights to this file")
     args = parser.parse_args(argv)
 
     try:
         board_dir = Path(args.board)
         board = load_board(board_dir / "board.json", load_netlist(board_dir / "netlist.xml"))
         pcb = _load_pcb(board_dir, board.graph) if args.svg else None
+        if args.command == "ask":
+            return _ask(board, args, pcb)
         if args.command == "diagnose":
             return _diagnose(board, args, pcb)
         readings = _load_readings(args.replay, args.scenario) if args.replay else None
@@ -77,6 +89,29 @@ def _diagnose(board, args, pcb) -> int:
     print(f"Suspects for {args.rail} {args.symptom}{where}:")
     for i, s in enumerate(suspects, 1):
         print(f"  {i}. {s.reason}")
+    return 0
+
+
+def _ask(board, args, pcb) -> int:
+    client = ai.make_client()
+    meaning = ai.interpret(board, args.text, client)
+    source = "not needed" if meaning.symptom == "shorted" else (meaning.source or "?")
+    print(f"Interpreted as: rail {meaning.rail or '?'}, symptom {meaning.symptom or '?'}, "
+          f"source {source}")
+    if not meaning.complete:
+        print(f"Need more detail: {meaning.missing or 'which rail and what is wrong with it'}")
+        return 1
+    args.rail, args.symptom, args.source = meaning.rail, meaning.symptom, meaning.source
+    if args.session:
+        return _session(board, args, None, pcb)
+    _diagnose(board, args, pcb)
+    suspects = diagnose(board, args.rail, args.symptom, args.source)
+    text = ai.explain(args.rail, args.symptom, args.source, suspects, client)
+    if text is None:
+        print("(The AI explanation mentioned parts outside the suspect list, so it was "
+              "discarded. The reasons above come straight from the engine.)")
+    else:
+        print("\nExplanation: " + text)
     return 0
 
 

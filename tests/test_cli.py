@@ -164,3 +164,40 @@ def test_svg_without_pcb_file(capsys, board_dir, tmp_path):
                        "--svg", str(tmp_path / "x.svg"))
     assert code == 1
     assert "expected one .kicad_pcb file" in err
+
+
+# ask command (AI layer, with a fake client)
+
+def test_ask(capsys, monkeypatch, board_dir):
+    from types import SimpleNamespace
+    from wrenchboard import __main__ as cli
+    form = SimpleNamespace(type="tool_use", name="set_diagnosis",
+                           input={"rail": "+5V", "symptom": "dead", "source": "barrel", "missing": None})
+    talk = SimpleNamespace(type="text", text="U1 is the regulator, so it comes first; D1 feeds it.")
+    replies = [SimpleNamespace(content=[form]), SimpleNamespace(content=[talk])]
+    client = SimpleNamespace(messages=SimpleNamespace(create=lambda **kw: replies.pop(0)))
+    monkeypatch.setattr(cli.ai, "make_client", lambda: client)
+    code, out, _ = run(capsys, "ask", "dead on the barrel jack", "--board", board_dir)
+    assert code == 0
+    assert "Interpreted as: rail +5V, symptom dead, source barrel" in out
+    assert "1. U1 regulates VCC down to +5V" in out
+    assert "Explanation: U1 is the regulator" in out
+
+
+def test_ask_needs_more_detail(capsys, monkeypatch, board_dir):
+    from types import SimpleNamespace
+    from wrenchboard import __main__ as cli
+    form = SimpleNamespace(type="tool_use", name="set_diagnosis",
+                           input={"rail": "+5V", "symptom": "dead", "source": None, "missing": None})
+    client = SimpleNamespace(messages=SimpleNamespace(create=lambda **kw: SimpleNamespace(content=[form])))
+    monkeypatch.setattr(cli.ai, "make_client", lambda: client)
+    code, out, _ = run(capsys, "ask", "it's dead", "--board", board_dir)
+    assert code == 1
+    assert "Need more detail: which power source" in out
+
+
+def test_ask_without_key(capsys, monkeypatch, board_dir):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    code, _, err = run(capsys, "ask", "it's dead", "--board", board_dir)
+    assert code == 1
+    assert "ANTHROPIC_API_KEY" in err
