@@ -46,6 +46,7 @@ def test_loads_expected(tmp_path, mini):
     ({"ground": "GND", "sources": {"barrel": BARREL}, "expected": {"barrel": {"+12V": 5}}}, "not in the schematic"),
     ({"ground": "GND", "sources": {"barrel": BARREL}, "expected": {"barrel": {"VIN": "five"}}}, "must be a number"),
     ({"ground": "GND", "sources": {"barrel": BARREL}, "expected": {"barrel": {"GND": 0}}}, "ground net"),
+    ({"ground": "GND", "sources": {"barrel": BARREL}, "main_rail": "+12V"}, "main rail"),    
 ])
 def test_rejects_bad_config(tmp_path, mini, data, message):
     with pytest.raises(BoardConfigError, match=message):
@@ -72,3 +73,4 @@ def test_uno_board_config():
         "barrel": Source("J9", "Net-(D1-A)"),
     }
     assert board.expected["usb"]["GATE_CMD"] == 0.0
+    assert board.main_rail == "+5V"

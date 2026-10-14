@@ -29,6 +29,7 @@ class Board:
     ground: str
     sources: dict[str, Source]
     expected: dict[str, dict[str, float]] = field(default_factory=dict)
+    main_rail: str | None = None
 
 
 def load_board(path: str | Path, graph: Graph) -> Board:
@@ -56,7 +57,11 @@ def load_board(path: str | Path, graph: Graph) -> Board:
         for name, spec in sources.items()
     }
     expected = _load_expected(path, graph, ground, parsed, data.get("expected", {}))
-    return Board(graph=graph, ground=ground, sources=parsed, expected=expected)
+    main_rail = data.get("main_rail")
+    if main_rail is not None and (not isinstance(main_rail, str) or not graph.has_net(main_rail)):
+        raise BoardConfigError(f"{path}: main rail {main_rail!r} is not in the schematic")
+    return Board(graph=graph, ground=ground, sources=parsed, expected=expected,
+                 main_rail=main_rail)
 
 
 def _load_source(path: Path, graph: Graph, ground: str, name: str, spec) -> Source:

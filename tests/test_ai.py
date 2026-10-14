@@ -61,6 +61,11 @@ def test_form_choices_come_from_the_board(board):
     assert props["source"]["enum"] == ["barrel", "usb", "unknown"]
     assert props["symptom"]["enum"] == ["dead", "shorted", "unknown"]
 
+def test_prompt_names_main_rail(board):
+    from dataclasses import replace
+    backend = FakeBackend(form())
+    interpret(replace(board, main_rail="+5V"), "x", backend)
+    assert "the rail is +5V" in backend.calls[0][1]
 
 def test_complete_interpretation(board):
     meaning = interpret(board, "x", FakeBackend(form(rail="+5V", symptom="dead", source="usb")))

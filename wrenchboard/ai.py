@@ -177,7 +177,8 @@ def interpret(board: Board, text: str, backend) -> Interpretation:
         f"Power sources on this board:\n{source_lines}\n"
         "Symptoms: 'dead' means a rail has no voltage or the board won't power on; "
         "'shorted' means a rail measures near zero ohms to ground.\n"
-        "If the board won't power on at all, the main logic rail is the usual choice. "
+        + (f"If the whole board seems dead or won't power on, the rail is {board.main_rail}. "
+           if board.main_rail else "") +
         f"Use '{UNKNOWN}' for anything the description does not support, and say what is "
         "missing in 'missing'. Never guess a power source that wasn't mentioned."
     )
