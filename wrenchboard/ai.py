@@ -8,7 +8,10 @@ The AI never decides which parts are suspects. It does two narrow jobs:
   explain    rephrase the engine's results; any part reference in its text
              that isn't one of the suspects causes the text to be rejected
 
-Requires the anthropic package and the ANTHROPIC_API_KEY environment variable.
+Two providers are supported, chosen by which key is set:
+  GEMINI_API_KEY     Google Gemini (free tier), package google-genai
+  ANTHROPIC_API_KEY  Anthropic Claude, package anthropic
+If both are set, Gemini is used. GEMINI_MODEL overrides the Gemini model name.
 """
 
 from __future__ import annotations
@@ -21,9 +24,11 @@ from .board import Board
 from .diagnosis import SYMPTOMS, Suspect
 from .graph import GraphError, natural_key
 
-MODEL = "claude-haiku-4-5-20251001"
+ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
+GEMINI_MODEL = "gemini-3.5-flash-lite"
+UNKNOWN = "unknown"
+_FORM = "set_diagnosis"
 _REF_LIKE = re.compile(r"\b[A-Z]{1,3}\d+[A-Z]?\b")
-_TOOL = "set_diagnosis"
 
 
 class AIError(GraphError):
@@ -44,15 +49,97 @@ class Interpretation:
         return self.symptom != "dead" or self.source is not None
 
 
-def make_client():
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        raise AIError("ANTHROPIC_API_KEY is not set; see the README for setup")
-    try:
-        import anthropic
-    except ImportError:
-        raise AIError("the anthropic package is not installed: pip install anthropic") from None
-    return anthropic.Anthropic()
+# Backends: each has fill_form(system, text, schema) -> dict and say(system, text) -> str
 
+class AnthropicBackend:
+    name = "Claude"
+
+    def __init__(self, client, model: str = ANTHROPIC_MODEL):
+        self.client, self.model = client, model
+
+    def fill_form(self, system: str, text: str, schema: dict) -> dict:
+        response = self.client.messages.create(
+            model=self.model, max_tokens=300, system=system,
+            tools=[{"name": _FORM, "description": "Record the diagnosis request.",
+                    "input_schema": schema}],
+            tool_choice={"type": "tool", "name": _FORM},
+            messages=[{"role": "user", "content": text}],
+        )
+        for block in response.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == _FORM:
+                return block.input
+        raise AIError("the AI did not fill in the form")
+
+    def say(self, system: str, text: str) -> str:
+        response = self.client.messages.create(
+            model=self.model, max_tokens=300, system=system,
+            messages=[{"role": "user", "content": text}],
+        )
+        return "".join(getattr(b, "text", "") for b in response.content
+                       if getattr(b, "type", None) == "text")
+
+
+class GeminiBackend:
+    name = "Gemini"
+
+    def __init__(self, client, model: str = GEMINI_MODEL):
+        self.client, self.model = client, model
+
+    def fill_form(self, system: str, text: str, schema: dict) -> dict:
+        from google.genai import types
+        config = types.GenerateContentConfig(
+            system_instruction=system, max_output_tokens=1024,
+            tools=[types.Tool(function_declarations=[types.FunctionDeclaration(
+                name=_FORM, description="Record the diagnosis request.",
+                parameters_json_schema=schema)])],
+            tool_config=types.ToolConfig(function_calling_config=types.FunctionCallingConfig(
+                mode="ANY", allowed_function_names=[_FORM])),
+        )
+        response = self.client.models.generate_content(
+            model=self.model, contents=text, config=config)
+        for call in response.function_calls or []:
+            if call.name == _FORM:
+                return dict(call.args or {})
+        raise AIError("the AI did not fill in the form")
+
+    def say(self, system: str, text: str) -> str:
+        from google.genai import types
+        config = types.GenerateContentConfig(system_instruction=system, max_output_tokens=1024)
+        response = self.client.models.generate_content(
+            model=self.model, contents=text, config=config)
+        return response.text or ""
+
+
+def make_client():
+    """Pick a backend from whichever API key is set."""
+    if os.environ.get("GEMINI_API_KEY"):
+        try:
+            from google import genai
+        except ImportError:
+            raise AIError("the google-genai package is not installed: "
+                          "python -m pip install google-genai") from None
+        client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        return GeminiBackend(client, os.environ.get("GEMINI_MODEL") or GEMINI_MODEL)
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        try:
+            import anthropic
+        except ImportError:
+            raise AIError("the anthropic package is not installed: "
+                          "python -m pip install anthropic") from None
+        return AnthropicBackend(anthropic.Anthropic())
+    raise AIError("no API key set: set GEMINI_API_KEY or ANTHROPIC_API_KEY (see the README)")
+
+
+def _ask(fn, *args):
+    try:
+        return fn(*args)
+    except AIError:
+        raise
+    except Exception as e:  # network, auth, quota: report, never crash
+        raise AIError(f"AI request failed: {e}") from None
+
+
+# The two jobs
 
 def rail_choices(board: Board) -> list[str]:
     """Nets the user can name as a faulty rail: those with an expected voltage."""
@@ -60,16 +147,25 @@ def rail_choices(board: Board) -> list[str]:
     return sorted(nets, key=natural_key)
 
 
-def _call(client, **kwargs):
-    try:
-        return client.messages.create(model=MODEL, **kwargs)
-    except Exception as e:  # network, auth, rate limit: report, never crash
-        raise AIError(f"AI request failed: {e}") from None
+def form_schema(board: Board) -> dict:
+    """The form the AI fills in. Every choice comes from the board."""
+    return {
+        "type": "object",
+        "properties": {
+            "rail": {"type": "string", "enum": rail_choices(board) + [UNKNOWN],
+                     "description": "The faulty rail."},
+            "symptom": {"type": "string", "enum": list(SYMPTOMS) + [UNKNOWN]},
+            "source": {"type": "string", "enum": sorted(board.sources) + [UNKNOWN],
+                       "description": "Which power source is connected."},
+            "missing": {"type": "string",
+                        "description": "What the description leaves unclear; empty if nothing."},
+        },
+        "required": ["rail", "symptom", "source", "missing"],
+    }
 
 
-def interpret(board: Board, text: str, client) -> Interpretation:
+def interpret(board: Board, text: str, backend) -> Interpretation:
     rails = rail_choices(board)
-    sources = sorted(board.sources)
     if not rails:
         raise AIError("board.json has no expected voltages, so there are no rails to choose from")
     source_lines = "\n".join(
@@ -77,43 +173,24 @@ def interpret(board: Board, text: str, client) -> Interpretation:
         for name, s in sorted(board.sources.items()))
     system = (
         "You map a technician's description of a broken circuit board onto a fixed form. "
-        "Fill in the form with the set_diagnosis tool.\n"
+        f"Fill in the form with the {_FORM} function.\n"
         f"Power sources on this board:\n{source_lines}\n"
         "Symptoms: 'dead' means a rail has no voltage or the board won't power on; "
         "'shorted' means a rail measures near zero ohms to ground.\n"
         "If the board won't power on at all, the main logic rail is the usual choice. "
-        "Use null for anything the description does not support, and say what is "
+        f"Use '{UNKNOWN}' for anything the description does not support, and say what is "
         "missing in 'missing'. Never guess a power source that wasn't mentioned."
     )
-    tool = {
-        "name": _TOOL,
-        "description": "Record the faulty rail, the symptom, and the active power source.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "rail": {"enum": rails + [None], "description": "The faulty rail."},
-                "symptom": {"enum": list(SYMPTOMS) + [None]},
-                "source": {"enum": sources + [None],
-                           "description": "Which power source is connected."},
-                "missing": {"type": ["string", "null"],
-                            "description": "What the description leaves unclear, or null."},
-            },
-            "required": ["rail", "symptom", "source", "missing"],
-        },
-    }
-    response = _call(
-        client, max_tokens=300, system=system, tools=[tool],
-        tool_choice={"type": "tool", "name": _TOOL},
-        messages=[{"role": "user", "content": text}],
-    )
-    block = next((b for b in response.content
-                  if getattr(b, "type", None) == "tool_use" and b.name == _TOOL), None)
-    if block is None or not isinstance(block.input, dict):
+    data = _ask(backend.fill_form, system, text, form_schema(board))
+    if not isinstance(data, dict):
         raise AIError("the AI did not fill in the form")
-    data = block.input
 
-    rail, symptom, source = data.get("rail"), data.get("symptom"), data.get("source")
-    missing = data.get("missing") or None
+    def pick(field):
+        value = data.get(field)
+        return None if value in (None, "", UNKNOWN) else value
+
+    rail, symptom, source = pick("rail"), pick("symptom"), pick("source")
+    missing = (data.get("missing") or "").strip() or None
     if rail is not None and rail not in rails:
         raise AIError(f"the AI chose a rail that isn't on the board: {rail!r}")
     if symptom is not None and symptom not in SYMPTOMS:
@@ -123,12 +200,12 @@ def interpret(board: Board, text: str, client) -> Interpretation:
     if symptom == "shorted":
         source = None  # the short rule doesn't use the source
     if symptom == "dead" and source is None and not missing:
-        missing = f"which power source is connected ({', '.join(sources)})"
+        missing = f"which power source is connected ({', '.join(sorted(board.sources))})"
     return Interpretation(rail, symptom, source, missing)
 
 
 def explain(rail: str, symptom: str, source: str | None,
-            suspects: list[Suspect], client) -> str | None:
+            suspects: list[Suspect], backend) -> str | None:
     """A short plain language explanation, or None if it named a part it shouldn't."""
     if not suspects:
         return None
@@ -141,15 +218,8 @@ def explain(rail: str, symptom: str, source: str | None,
         "and what each does in the circuit. Only mention these part references: "
         f"{', '.join(sorted(allowed, key=natural_key))}. Do not mention any other parts."
     )
-    response = _call(
-        client, max_tokens=300, system=system,
-        messages=[{"role": "user", "content":
-                   f"Problem: {rail} is {symptom}{where}.\nRanked suspects:\n{reasons}"}],
-    )
-    text = "".join(getattr(b, "text", "") for b in response.content
-                   if getattr(b, "type", None) == "text").strip()
-    if not text:
-        return None
-    if any(ref not in allowed for ref in _REF_LIKE.findall(text)):
+    text = _ask(backend.say, system,
+                f"Problem: {rail} is {symptom}{where}.\nRanked suspects:\n{reasons}").strip()
+    if not text or any(ref not in allowed for ref in _REF_LIKE.findall(text)):
         return None
     return text

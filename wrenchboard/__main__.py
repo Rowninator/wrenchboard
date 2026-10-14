@@ -6,7 +6,7 @@
 
     python -m wrenchboard ask "DESCRIPTION" [--session] [--board DIR] [--svg FILE]
 
-ask uses the AI layer (needs ANTHROPIC_API_KEY) to turn a description into
+ask uses the AI layer (needs GEMINI_API_KEY or ANTHROPIC_API_KEY) to turn a description into
 the engine's terms, then runs the engine and explains the result.
 --svg writes a picture of the board with the suspects highlighted; during a
 session it is rewritten after every reading.
@@ -94,6 +94,7 @@ def _diagnose(board, args, pcb) -> int:
 
 def _ask(board, args, pcb) -> int:
     client = ai.make_client()
+    print(f"(AI layer: {client.name})")
     meaning = ai.interpret(board, args.text, client)
     source = "not needed" if meaning.symptom == "shorted" else (meaning.source or "?")
     print(f"Interpreted as: rail {meaning.rail or '?'}, symptom {meaning.symptom or '?'}, "
@@ -137,7 +138,7 @@ def _session_svg(args, pcb, session: Session) -> None:
     state = "found" if step is None and len(remaining) == 1 else "suspect"
     parts.update({ref: state for ref in remaining})
     if step is not None and step.kind == "lift":
-        parts[step.ref] = "lift"    
+        parts[step.ref] = "lift"
     net = step.net if step is not None and step.kind == "measure" else None
     if step is not None:
         title = step.prompt
