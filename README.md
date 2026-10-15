@@ -1,6 +1,6 @@
 # Wrench Board Lite
 
-A Python tool that reads a KiCad schematic, takes a symptom like "the 5 V rail is dead," and guides a step by step diagnosis: which parts to suspect, what to measure next, and where to put the probe on the board. Every part and net it names comes from the schematic itself.
+A Python tool that reads a KiCad schematic, takes a symptom, and guides a step by step diagnosis including which parts to suspect, what to measure next, and where to put the probe on the board. Every part and net it names comes from the schematic itself.
 
 ![Fault found on the Uno R3](docs/fault_found.png)
 
